@@ -1,0 +1,41 @@
+[package]
+name = "clawdbot"
+version = "0.1.0"
+description = "Desktop pet that shows what Claude needs"
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tiny_http = "0.12"
+# direct access to the WebView2 settings object (already a tauri dependency)
+# to switch off browser accelerator keys on the pet window
+webview2-com = "0.38"
+# GetAsyncKeyState for the app-driven drag (tao already builds that feature)
+# and a Toolhelp process snapshot for the Claude census (replaces a tasklist
+# spawn that stalled the reducer thread)
+windows = { version = "0.61", features = [
+  "Win32_Foundation",
+  "Win32_UI_Input_KeyboardAndMouse",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_System_Diagnostics_ToolHelp",
+  # RegGetValueW: the notification platform's own per-app heartbeat
+  # (LastNotificationAddedTime / Enabled) for the toast watcher's health
+  "Win32_System_Registry",
+] }
+# read-only view of the Windows notification store (wpndatabase.db), the
+# desktop app's toast rows being the Cowork "needs you" signal
+rusqlite = { version = "0.40", features = ["bundled"] }
+
+[features]
+# enabled for production builds (cargo build --release --features custom-protocol):
+# embeds ../src into the exe instead of loading the dev server's devUrl
+custom-protocol = ["tauri/custom-protocol"]
+
+[profile.release]
+strip = true
+lto = true

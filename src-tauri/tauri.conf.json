@@ -1,0 +1,33 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Clawdbot",
+  "version": "0.1.0",
+  "identifier": "com.clawdbot.pet",
+  "build": {
+    "frontendDist": "../src",
+    "devUrl": "http://localhost:4870",
+    "beforeDevCommand": "node tools/dev-server.js"
+  },
+  "app": {
+    "withGlobalTauri": true,
+    "windows": [
+      {
+        "label": "pet",
+        "title": "Claw'dbot",
+        "width": 160,
+        "height": 160,
+        "visible": false,
+        "transparent": true,
+        "decorations": false,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "shadow": false,
+        "resizable": false,
+        "maximizable": false,
+        "minimizable": false
+      }
+    ],
+    "security": { "csp": null }
+  },
+  "bundle": { "active": false }
+}

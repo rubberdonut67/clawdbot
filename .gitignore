@@ -1,0 +1,6 @@
+# Rust build output (multi-GB) and tauri-build generated schemas
+src-tauri/target/
+src-tauri/gen/schemas/
+# Claude Code worktrees live inside the repo
+.claude/worktrees/
+node_modules/

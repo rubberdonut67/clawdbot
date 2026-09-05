@@ -1,0 +1,6 @@
+{
+  "identifier": "default",
+  "description": "Pet window IPC",
+  "windows": ["pet"],
+  "permissions": ["core:default"]
+}
