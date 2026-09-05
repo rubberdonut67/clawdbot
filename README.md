@@ -146,7 +146,11 @@ lines from `%LOCALAPPDATA%\Claude\logs\main.log` are what make a report actionab
   rights in them and would remove or redraw them on request. Anthropic does not
   publish the names of the artists behind the buddy; if you are one of them and want
   to be named here, open an issue.
-- **The flag wave** (the "done" animation) was made by **Ayotomiwa Wale-Durojaye**.
+- **The flag wave** (the "done" animation) is adapted from **Ayotomiwa Wale-Durojaye**'s
+  SVG and GSAP recreation of the Claude mascot animations, published on Codrops
+  ([Reverse-Engineering Claude AI's Mascot Animations with SVG and GSAP](https://tympanus.net/codrops/2026/05/05/reverse-engineering-claude-ais-mascot-animations-with-svg-and-gsap/),
+  demos under the MIT licence per Codrops' licensing terms). Copyright (c) Ayotomiwa
+  Wale-Durojaye. Their work is itself a recreation of Anthropic's original animations.
 - **The resting pose, the needs-attention hop, the sad rain, and the error
   animation** were made by **rubberdonut67**, the author of this project.
 - Built with [Tauri 2](https://tauri.app), [rusqlite](https://github.com/rusqlite/rusqlite),
