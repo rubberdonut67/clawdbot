@@ -50,7 +50,7 @@ request this project exists to argue for.
 
 ## Install
 
-Download `Clawdbot_0.1.0_x64-setup.exe` from the
+Download `Clawdbot_0.1.1_x64-setup.exe` from the
 [latest release](https://github.com/rubberdonut67/clawdbot/releases/latest) and run it.
 It installs for your user only (no administrator prompt) and puts a **Clawdbot** entry
 in the Start menu and a shortcut on the desktop. It needs Windows 11 and Claude Code;
