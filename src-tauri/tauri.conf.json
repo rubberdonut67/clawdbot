@@ -27,7 +27,33 @@
         "minimizable": false
       }
     ],
-    "security": { "csp": null }
+    "security": {
+      "csp": null
+    }
   },
-  "bundle": { "active": false }
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "publisher": "rubberdonut67",
+    "homepage": "https://github.com/rubberdonut67/clawdbot",
+    "shortDescription": "Claw'dbot: a desktop pet that shows what Claude needs",
+    "longDescription": "A crab. A robot. A very small colleague. Claw'd sits on your screen and reacts to your Claude Code and Cowork sessions: it works while Claude works, waves a flag when a task finishes, and hops when Claude is waiting on you.",
+    "copyright": "Copyright (c) 2026 rubberdonut67",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.ico"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico"
+      }
+    }
+  }
 }

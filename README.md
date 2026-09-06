@@ -48,18 +48,32 @@ documented in the source comments of `src-tauri/src/cowork/`. An official local 
 feed from the desktop app would make all of that unnecessary; that is the feature
 request this project exists to argue for.
 
-## Download
+## Install
 
-Grab `clawdbot.exe` from the [latest release](https://github.com/rubberdonut67/clawdbot/releases/latest),
-put it anywhere, and run it. It needs Windows 11 and Claude Code; for the Cowork side,
-the Claude desktop app from the Microsoft Store. Then do the hook setup below, or the
-pet never hears about your Claude Code sessions.
+Download `Clawdbot_0.1.0_x64-setup.exe` from the
+[latest release](https://github.com/rubberdonut67/clawdbot/releases/latest) and run it.
+It installs for your user only (no administrator prompt) and puts a **Clawdbot** entry
+in the Start menu and a shortcut on the desktop. It needs Windows 11 and Claude Code;
+for the Cowork side, the Claude desktop app from the Microsoft Store.
 
-**The exe is unsigned.** Windows SmartScreen will show "Windows protected your PC" with
-an unknown publisher the first time; "More info" and then "Run anyway" gets past it.
-Signing would need a paid certificate tied to a verified identity, which this project
-does not have. If you would rather not trust a download, build it yourself from the
-source below; the whole thing is a few thousand lines and every part of it is here.
+**The installer is unsigned.** Windows SmartScreen will show "Windows protected your PC"
+with an unknown publisher the first time; "More info" and then "Run anyway" gets past
+it. Signing would need a paid certificate tied to a verified identity, which this
+project does not have. If you would rather not trust a download, build it yourself from
+the source below; the whole thing is a few thousand lines and every part of it is here.
+
+If you prefer no installer, the same release also has the bare `clawdbot.exe`: put it
+anywhere and double-click it.
+
+## Launch
+
+Click **Clawdbot** in the Start menu, or the icon the installer put on the desktop.
+Claw'd appears on screen a moment later, somewhere on your main screen the first time
+and wherever you last dragged it after that. There is no window and no tray icon: the
+crab is the whole app. Press `q` while it has focus to quit.
+
+Then do the hook setup below, or the pet never hears about your Claude Code sessions.
+Uninstall from Settings > Apps (it is listed as Clawdbot).
 
 ## Requirements (to build from source)
 
@@ -78,6 +92,14 @@ cargo build --release --features custom-protocol
 The `custom-protocol` feature embeds the `src/` frontend into the exe. Copy
 `target/release/clawdbot.exe` wherever you like and run it. Position and scale are
 saved to `%APPDATA%\Clawdbot\config.json`.
+
+To build the installer as well (needs Node), run from the repository root:
+
+```
+npx @tauri-apps/cli@2 build
+```
+
+That produces `src-tauri/target/release/bundle/nsis/Clawdbot_<version>_x64-setup.exe`.
 
 ## Hook setup for Claude Code
 
