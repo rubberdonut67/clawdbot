@@ -24,8 +24,8 @@ the point. The name is what it sounds like: Claude, with claws.
 ![Claw'd napping, dreaming of work](docs/clawdbot-sleeping.gif)
 
 Claw'dbot is an independent hobby project. It is not made, endorsed, or supported by
-Anthropic. The working animation is a recreation of Anthropic's Claude Code buddy; the
-rest of the art is original. See Credits below.
+Anthropic. The working animation and the optional `cli` skin are recreations of
+Anthropic's Claude Code buddy; the rest of the art is original. See Credits below.
 
 ## What it watches
 
@@ -119,6 +119,11 @@ doing any work, so a slow or dead pet can never stall a Claude turn.
 - Click Claw'd for the session popover. Rows show project (or session title), state,
   age, and the last detail; Cowork rows carry a `Cowork` pill.
 - Click a row to open that session in the desktop app.
+- The gear in the popover opens two rows: **theme** (system, dark, light) for the
+  panels, and **skin** for Claw'd itself. `app` is the original crab; `cli` is a
+  pixel recreation of the buddy that lives in the Claude Code terminal, wider and
+  flatter with tall narrow eyes. Every state is drawn in both skins; the choice
+  persists.
 - Drag Claw'd to move; the position persists. Crabs are sideways creatures, but this
   one goes wherever you put it.
 - Claw'd can be big or small. Click it, then `+` and `-` grow and shrink it in 15 %
@@ -168,6 +173,10 @@ lines from `%LOCALAPPDATA%\Claude\logs\main.log` are what make a report actionab
   rights in them and would remove or redraw them on request. Anthropic does not
   publish the names of the artists behind the buddy; if you are one of them and want
   to be named here, open an issue.
+- **The `cli` skin** is that same Claude Code buddy, redrawn as pixel art from
+  Anthropic's public announcement of it: its resting shape and proportions are
+  measured from that material, and every state of this project's animation set is
+  then drawn on that body. The character is Anthropic's; the same disclaimer applies.
 - **The flag wave** (the "done" animation) is adapted from **Ayotomiwa Wale-Durojaye**'s
   SVG and GSAP recreation of the Claude mascot animations, published on Codrops
   ([Reverse-Engineering Claude AI's Mascot Animations with SVG and GSAP](https://tympanus.net/codrops/2026/05/05/reverse-engineering-claude-ais-mascot-animations-with-svg-and-gsap/),

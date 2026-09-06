@@ -212,6 +212,11 @@
     <button data-theme="dark">dark</button>
     <button data-theme="light">light</button>
   </div>
+  <div id="art-row" class="theme-row" hidden>
+    <span class="lbl">skin:</span>
+    <button data-art="app">app</button>
+    <button data-art="cli">cli</button>
+  </div>
   <div id="pop-sessions"></div>
 </div>
 <div id="bubble" hidden></div>
@@ -227,12 +232,19 @@
 
 <script type="module">
   import { Pet } from './pet.js';
-  import { CLIPS } from './sprites.js';
+  import { STYLES } from './styles.js';
 
   const IS_TAURI = !!window.__TAURI__;
   const invoke = IS_TAURI ? window.__TAURI__.core.invoke : null;
 
-  const STATES = Object.keys(CLIPS);
+  // art style (app mascot / CLI mascot): persisted like the panel theme;
+  // default app, so nothing changes for anyone who never touches the row
+  let artStyle = 'app';
+  try { artStyle = localStorage.getItem('artStyle') || 'app'; } catch {}
+  if (!STYLES[artStyle]) artStyle = 'app';
+
+  // the demo panel's state list follows the active style (soccer is app-only)
+  let STATES = Object.keys(STYLES[artStyle].clips);
 
   // forgiveness halo (CSS px) around the sprite's envelope: part of the OS
   // hit region (reportBounds) AND of the buddy's own press region (onBuddy),
@@ -245,7 +257,7 @@
 
   const canvas = document.getElementById('pet-canvas');
   const wrap = document.getElementById('pet-wrap');
-  const pet = new Pet(canvas, IS_TAURI ? 1 : savedScale);
+  const pet = new Pet(canvas, IS_TAURI ? 1 : savedScale, artStyle);
 
   function reportBounds() {
     if (!IS_TAURI) return;
@@ -352,6 +364,7 @@
   const popCowork = document.getElementById('pop-cowork');
   const popSessions = document.getElementById('pop-sessions');
   const themeRow = document.getElementById('theme-row');
+  const artRow = document.getElementById('art-row');
   const gearBtn = document.getElementById('gearbtn');
 
   let panelTheme = 'system';
@@ -375,9 +388,38 @@
   darkQuery.addEventListener('change', () => { if (panelTheme === 'system') applyPanelTheme(); });
   applyPanelTheme();
   syncThemeButtons();
-  gearBtn.onclick = (e) => { e.stopPropagation(); themeRow.hidden = !themeRow.hidden; reportBounds(); };
+  // the gear shows/hides the settings rows together (theme + art)
+  gearBtn.onclick = (e) => {
+    e.stopPropagation();
+    const show = themeRow.hidden;
+    themeRow.hidden = !show;
+    artRow.hidden = !show;
+    reportBounds();
+  };
   themeRow.querySelectorAll('button[data-theme]').forEach((b) => {
     b.onclick = (e) => { e.stopPropagation(); setPanelTheme(b.dataset.theme); };
+  });
+
+  // --- art style row: swaps the buddy's whole clip set in place; the hit
+  //     region and the demo state list follow the new style ---
+  function syncArtButtons() {
+    artRow.querySelectorAll('button[data-art]').forEach((b) => {
+      b.classList.toggle('active', artStyle === b.dataset.art);
+    });
+  }
+  function setArtStyle(name) {
+    if (!STYLES[name]) return;
+    artStyle = name;
+    try { localStorage.setItem('artStyle', name); } catch {}
+    pet.setStyle(name);
+    syncArtButtons();
+    STATES = Object.keys(pet.style.clips);
+    buildStateButtons();
+    reportBounds();
+  }
+  syncArtButtons();
+  artRow.querySelectorAll('button[data-art]').forEach((b) => {
+    b.onclick = (e) => { e.stopPropagation(); setArtStyle(b.dataset.art); };
   });
 
   const POP_RANK = { needs_input: 6, error: 5, working: 3, thinking: 3, done: 2, idle: 1 };
@@ -498,7 +540,7 @@
     if (popEl.hidden === !open) return;
     popEl.hidden = !open;
     if (open) { positionPopover(); renderPopover(); btnEl.hidden = true; }
-    else themeRow.hidden = true; // reopening always starts on the session list
+    else { themeRow.hidden = true; artRow.hidden = true; } // reopening always starts on the session list
     updateBubble();
     reportBounds();
   }
@@ -606,13 +648,18 @@
 
   // --- debug panel ---
   const btns = document.getElementById('state-buttons');
-  STATES.forEach((s) => {
-    const b = document.createElement('button');
-    b.textContent = s.replace('_', ' ');
-    b.dataset.state = s;
-    b.onclick = () => setState(s);
-    btns.appendChild(b);
-  });
+  function buildStateButtons() {
+    btns.textContent = '';
+    STATES.forEach((s) => {
+      const b = document.createElement('button');
+      b.textContent = s.replace('_', ' ');
+      b.dataset.state = s;
+      b.onclick = () => setState(s);
+      b.classList.toggle('active', s === pet.state);
+      btns.appendChild(b);
+    });
+  }
+  buildStateButtons();
 
   function setState(s) {
     pet.setState(s);
@@ -622,9 +669,6 @@
   pet.on('state', ({ state }) => {
     [...btns.children].forEach((b) => b.classList.toggle('active', b.dataset.state === state));
   });
-  // initial sync: the constructor already left the pet in idle, so the
-  // setState('idle') below short-circuits without emitting
-  [...btns.children].forEach((b) => b.classList.toggle('active', b.dataset.state === pet.state));
 
   document.getElementById('bg-light').onchange = (e) => {
     document.body.classList.toggle('demo-light', e.target.checked);
@@ -810,7 +854,7 @@
   }
 
   // debug/test handle
-  window.__clawdbot = { pet, setState, setPopover, renderPopover, get lastPipeline() { return lastPipeline; } };
+  window.__clawdbot = { pet, setState, setStyle: setArtStyle, setPopover, renderPopover, get lastPipeline() { return lastPipeline; } };
 </script>
 </body>
 </html>

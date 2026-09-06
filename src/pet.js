@@ -1,5 +1,6 @@
-// Canvas sprite engine for the buddy. Renders CLIPS from sprites.js with
-// per-state motion and overlay glyphs. Host-agnostic: no Tauri APIs in here.
+// Canvas sprite engine for the buddy. Renders the active art style's clips
+// (styles.js: app mascot or CLI mascot) with per-state motion and overlay
+// glyphs. Host-agnostic: no Tauri APIs in here.
 //
 // Rendering: each frame is composited onto a native-resolution offscreen
 // canvas, then drawn once at an integer number of *device* pixels per sprite
@@ -10,18 +11,16 @@
 // CSS px -> device px. opaqueBounds() reports CSS px.
 'use strict';
 
-import { CLIPS, PALETTES, GLYPHS, SPRITE_W, SPRITE_H } from './sprites.js';
+import { PALETTES, GLYPHS } from './sprite-kit.js';
+import { STYLES } from './styles.js';
 
-const CELL = 8;                  // units per sprite cell
+// Per-style geometry (cell size, base grid, ground line, motion envelope,
+// overlay anchors) lives in styles.js: the app buddy has 8-unit cells on a
+// 12x10 grid with its feet on unit 140 (ground 148 = the bottom headroom
+// row); the CLI buddy has 1.5-unit cells on a 64x52 grid standing on the
+// same line. Both rest 96 units wide from unit 32.
 const UNIT_W = 160;
 const UNIT_H = 160;
-const GROUND_Y = UNIT_H - 12;    // buddy feet rest here (units)
-// Worst-case motion offsets (units): done's flag frame is 32 half-rows
-// tall (top at unit 20; rest y is 68 -> up 48) and sways dx +4; working's
-// away frames sit at dx -28 with the laptop art at frame col 0 = canvas
-// unit 4 (left 28); soccer's 34-half-col frames at dx -20 reach 20 units
-// past the rest edge on the right; droop dy +4.
-const MOTION_ENVELOPE = { left: 28, right: 24, up: 48, down: 4 };
 
 // Motion transforms return integer unit offsets.
 const MOTIONS = {
@@ -43,8 +42,9 @@ const NAP_MIN_MS = 45000;
 const NAP_MAX_MS = 120000;
 
 export class Pet {
-  constructor(canvas, scale = 1) {
+  constructor(canvas, scale = 1, style = 'app') {
     this.canvas = canvas;
+    this.style = STYLES[style] || STYLES.app;
     this.state = 'idle';
     this.detail = null;
     this.stateSince = performance.now();
@@ -56,14 +56,13 @@ export class Pet {
     // error-state glitch: random tear-into-bands moments (see _raf)
     this._glitch = { nextAt: 0, until: 0, bands: [0, 0, 0], grey: false };
 
+    // offscreen compositors for the integer-snapped paint path (see
+    // _paintFrame): one for the buddy, a separate one for the dream vignette
+    // because the main draw resizes its canvas to every frame's size
     this.off = document.createElement('canvas');
-    this.off.width = SPRITE_W;
-    this.off.height = SPRITE_H;
-    this.offCtx = this.off.getContext('2d');
-    // separate offscreen for the dream vignette: the main draw resizes
-    // this.off per frame, so the mini scene gets its own compositor
+    this.off.width = this.style.spriteW;
+    this.off.height = this.style.spriteH;
     this.dreamOff = document.createElement('canvas');
-    this.dreamCtx = this.dreamOff.getContext('2d');
 
     this.setScale(scale);
 
@@ -80,7 +79,6 @@ export class Pet {
     this.scale = Math.min(3, Math.max(0.5, scale));
     this.dpr = window.devicePixelRatio || 1;
     this.k = this.scale * this.dpr;           // units -> device px
-    this.cell = Math.max(1, Math.round(CELL * this.k));
     this.canvas.width = Math.round(UNIT_W * this.k);
     this.canvas.height = Math.round(UNIT_H * this.k);
     this.canvas.style.width = (UNIT_W * this.scale) + 'px';
@@ -90,8 +88,24 @@ export class Pet {
     this._emit('scale', this.scale);
   }
 
+  // Swap the art style (app / cli) in place: the state and its clock are
+  // kept, an in-flight outro is dropped (its frames belong to the old body),
+  // and a state the new style lacks (soccer on cli) falls back to idle.
+  setStyle(name) {
+    const next = STYLES[name];
+    if (!next || next === this.style) return;
+    this.style = next;
+    this._outro = null;
+    if (!next.clips[this.state]) this._apply('idle', null);
+    this._emit('style', name);
+  }
+
   setState(state, detail = null) {
-    if (!CLIPS[state]) throw new Error('unknown state: ' + state);
+    if (!this.style.clips[state]) {
+      if (!Object.values(STYLES).some((s) => s.clips[state])) throw new Error('unknown state: ' + state);
+      console.warn(`art style ${this.style.name} has no ${state} clip; showing idle`);
+      state = 'idle';
+    }
     // While an outro is in flight, any request just re-targets its pending
     // state — including back to the outgoing state (a fast A→B→A flap must
     // end on A, so this check runs before the same-state short-circuit).
@@ -99,7 +113,7 @@ export class Pet {
     if (state === this.state) { this.detail = detail; return; }
     // A clip with an outro finishes its exit move before the next state shows
     // (e.g. working: leap back home and land, per the reference GIF).
-    const cur = CLIPS[this._clipName()];
+    const cur = this.style.clips[this._clipName()];
     if (cur.stages && cur.stages.outro.length) {
       this._outro = { steps: cur.stages.outro, palette: cur.palette, res: cur.res || 1, overlay: cur.overlay, start: performance.now(), pending: { state, detail } };
       return;
@@ -153,20 +167,22 @@ export class Pet {
 
   // Rest-position sprite rect in units (canvas-relative).
   restBounds() {
-    const w = SPRITE_W * CELL, h = SPRITE_H * CELL;
-    return { x: (UNIT_W - w) / 2, y: GROUND_Y - h, w, h };
+    const st = this.style;
+    const w = st.spriteW * st.cell, h = st.spriteH * st.cell;
+    return { x: (UNIT_W - w) / 2, y: st.ground - h, w, h };
   }
 
   // Clickable region for the Tauri hit test, in CSS px: rest rect expanded by
   // the worst-case motion envelope so the buddy stays clickable mid-hop.
   opaqueBounds() {
     const b = this.restBounds();
+    const env = this.style.envelope;
     const s = this.scale;
     return {
-      x: (b.x - MOTION_ENVELOPE.left) * s,
-      y: (b.y - MOTION_ENVELOPE.up) * s,
-      w: (b.w + MOTION_ENVELOPE.left + MOTION_ENVELOPE.right) * s,
-      h: (b.h + MOTION_ENVELOPE.up + MOTION_ENVELOPE.down) * s,
+      x: (b.x - env.left) * s,
+      y: (b.y - env.up) * s,
+      w: (b.w + env.left + env.right) * s,
+      h: (b.h + env.up + env.down) * s,
     };
   }
 
@@ -198,7 +214,7 @@ export class Pet {
       this._apply(p.state, p.detail);
       // fall through to render the new state this same frame
     }
-    const clip = CLIPS[this._clipName()];
+    const clip = this.style.clips[this._clipName()];
     const res = clip.res || 1;
     const t = this._clipTime();
     if (clip.stages) { // intro once, then loop cycles on measured durations
@@ -253,50 +269,83 @@ export class Pet {
     const m = (MOTIONS[cur.motion] || MOTIONS.none)(t);
     const dx = m.dx + cur.fdx, dy = m.dy + cur.fdy;
 
-    // composite the frame at its native resolution (res 2 = half-cell art)
-    const rows = frame.length, cols = frame[0].length;
-    if (this.off.width !== cols || this.off.height !== rows) {
-      this.off.width = cols;
-      this.off.height = rows;
-    }
-    this.offCtx.clearRect(0, 0, cols, rows);
-    for (let r = 0; r < rows; r++) {
-      const row = frame[r];
-      for (let c = 0; c < cols; c++) {
-        const ch = row[c];
-        if (ch === '.') continue;
-        this.offCtx.fillStyle = palette[ch] || '#ff00ff';
-        this.offCtx.fillRect(c, r, 1, 1);
-      }
-    }
-
-    // single scaled draw; cell size shrinks with frame resolution (the staged
-    // clips use res 2 = half-cell art at 4 units per cell). The sprite is
-    // anchored by its BOTTOM row to the ground so self-sized frames of any
-    // height stand on the same line; for res-1 clips this equals restBounds().y.
+    // cell size shrinks with frame resolution (the app's staged clips use
+    // res 2 = half-cell art at 4 units per cell). The sprite is anchored by
+    // its BOTTOM row to the ground so self-sized frames of any height stand
+    // on the same line; for res-1 clips this equals restBounds().y.
+    const rows = frame.length;
     const res = cur.res || 1;
-    const unitCell = CELL / res;
-    const cellPx = Math.max(1, Math.round(unitCell * this.k));
+    const unitCell = this.style.cell / res;
     const base = this.restBounds();
-    const ox = base.x + dx, oy = GROUND_Y - rows * unitCell + dy;
-    const dev = (v) => Math.round(v * this.k);
-    if (glitch) { // three horizontal slices, each shifted by its band offset
-      const bandH = Math.ceil(rows / 3);
-      for (let b = 0; b < 3; b++) {
-        const sy = b * bandH;
-        const h = Math.min(bandH, rows - sy);
-        if (h <= 0) break;
-        ctx.drawImage(this.off, 0, sy, cols, h,
-          dev(ox + glitch.bands[b] * unitCell), dev(oy) + sy * cellPx, cols * cellPx, h * cellPx);
-      }
-    } else {
-      ctx.drawImage(this.off, 0, 0, cols, rows,
-        dev(ox), dev(oy), cols * cellPx, rows * cellPx);
-    }
+    const ox = base.x + dx, oy = this.style.ground - rows * unitCell + dy;
+    this._paintFrame(this.off, frame, palette, ox, oy, unitCell, this.style.snap, glitch && glitch.bands);
 
     this._drawOverlay(cur.overlay, t, ox, oy);
 
     requestAnimationFrame(this._raf);
+  }
+
+  // Paint a frame with its top-left at canvas units (ux, uy), `unitCell`
+  // units per frame cell. `bands` (error glitch) shifts each of three
+  // horizontal slices by its offset in cells.
+  //   'int'  — composite at native resolution on `off`, then ONE scaled
+  //            drawImage at an integer number of device px per cell (the
+  //            app style: crisp 8-unit cells at any display scaling)
+  //   'edge' — fill each row's colour runs with edges rounded to device px
+  //            (the cli style's 1.5-unit cells never hit whole pixels; per-
+  //            edge rounding keeps the footprint exact and the unevenness
+  //            spread evenly instead of scaling the whole body up or down)
+  _paintFrame(off, frame, palette, ux, uy, unitCell, snap, bands) {
+    const ctx = this.ctx;
+    const rows = frame.length, cols = frame[0].length;
+    const bandH = Math.ceil(rows / 3);
+    const dev = (v) => Math.round(v * this.k);
+    if (snap === 'int') {
+      if (off.width !== cols || off.height !== rows) {
+        off.width = cols;
+        off.height = rows;
+      }
+      const octx = off.getContext('2d');
+      octx.clearRect(0, 0, cols, rows);
+      for (let r = 0; r < rows; r++) {
+        const row = frame[r];
+        for (let c = 0; c < cols; c++) {
+          const ch = row[c];
+          if (ch === '.') continue;
+          octx.fillStyle = palette[ch] || '#ff00ff';
+          octx.fillRect(c, r, 1, 1);
+        }
+      }
+      const cellPx = Math.max(1, Math.round(unitCell * this.k));
+      if (bands) { // three horizontal slices, each shifted by its band offset
+        for (let b = 0; b < 3; b++) {
+          const sy = b * bandH;
+          const h = Math.min(bandH, rows - sy);
+          if (h <= 0) break;
+          ctx.drawImage(off, 0, sy, cols, h,
+            dev(ux + bands[b] * unitCell), dev(uy) + sy * cellPx, cols * cellPx, h * cellPx);
+        }
+      } else {
+        ctx.drawImage(off, 0, 0, cols, rows, dev(ux), dev(uy), cols * cellPx, rows * cellPx);
+      }
+      return;
+    }
+    for (let r = 0; r < rows; r++) {
+      const row = frame[r];
+      const bx = bands ? bands[Math.min(2, Math.floor(r / bandH))] * unitCell : 0;
+      const y0 = dev(uy + r * unitCell), y1 = Math.max(y0 + 1, dev(uy + (r + 1) * unitCell));
+      let c = 0;
+      while (c < cols) {
+        const ch = row[c];
+        if (ch === '.') { c++; continue; }
+        let e = c + 1;
+        while (e < cols && row[e] === ch) e++;
+        const x0 = dev(ux + bx + c * unitCell), x1 = Math.max(x0 + 1, dev(ux + bx + e * unitCell));
+        ctx.fillStyle = palette[ch] || '#ff00ff';
+        ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
+        c = e;
+      }
+    }
   }
 
   _drawGlyph(glyph, unitX, unitY, unitScale = 3, alpha = 1) {
@@ -315,7 +364,8 @@ export class Pet {
 
   _drawOverlay(kind, t, ox, oy) {
     if (!kind) return;
-    const cx = ox + SPRITE_W * CELL / 2;
+    const st = this.style, a = st.anchors;
+    const cx = ox + st.spriteW * st.cell / 2;
     switch (kind) {
       case 'dream': { // thought bubble replaying the working clip, nap-paced
         this._drawDream(t);
@@ -324,15 +374,15 @@ export class Pet {
       case 'dots': { // thought dots cycle (third dot + tilt must stay left of
         // unit ~141 — the Tauri viewport clips ~12px on the right)
         const n = 1 + (Math.floor(t * 2) % 3);
-        for (let i = 0; i < n; i++) this._drawGlyph(GLYPHS.dot, ox + 76 + i * 12, oy - 12, 3);
+        for (let i = 0; i < n; i++) this._drawGlyph(GLYPHS.dot, ox + a.dots.x + i * a.dots.step, oy + a.dots.y, 3);
         break;
       }
       case 'quest': { // steady question mark: blind is calm but clearly not-OK
-        this._drawGlyph(GLYPHS.quest, cx - 8, oy - 28, 3);
+        this._drawGlyph(GLYPHS.quest, cx + a.quest.x, oy + a.quest.y, 3);
         break;
       }
       case 'rain': { // error: a grey cloud hangs overhead, drops fall and fade
-        const cloudX = cx - 14, cloudY = oy - 22;
+        const cloudX = cx + a.rain.x, cloudY = oy + a.rain.y;
         this._drawGlyph(GLYPHS.cloud, cloudX, cloudY, 4);
         for (let i = 0; i < 3; i++) {
           const phase = (t * 0.7 + i * 0.33) % 1;
@@ -349,12 +399,13 @@ export class Pet {
   // timed to land exactly when the wake timer fires. An early wake just drops
   // the overlay mid-story.
   _drawDream(t) {
-    const st = CLIPS.working.stages;
+    const clips = this.style.clips;
+    const st = clips.working.stages;
     const sum = (steps) => steps.reduce((a, s) => a + s.ms, 0);
     // no dream until the buddy has settled in (the sleeping intro): the
     // whole timeline shifts by the settle duration, and the natural-wake
     // sync still holds because the nap clock started at state entry too
-    const settleMs = sum(CLIPS.sleeping.stages.intro);
+    const settleMs = sum(clips.sleeping.stages.intro);
     const el = t * 1000 - settleMs;
     if (el < 0) return;
     const introMs = sum(st.intro), loopMs = sum(st.loop), outroMs = sum(st.outro);
@@ -426,28 +477,14 @@ export class Pet {
     bubbles.forEach(([x, y, s]) => rect(x, y, s, s, bob));
     ctx.globalAlpha = 1;
 
-    // mini scene: the working frame at 1 unit per half-cell (quarter size),
-    // bottom-anchored on the cloud floor; step dx scales down 4x (0 or -7)
+    // mini scene: the working frame at the style's dream cell size (app: 1
+    // unit per half-cell = quarter size; step dx scales down 4x, 0 or -7),
+    // bottom-anchored on the cloud floor
     const frame = step.frame;
-    const rows = frame.length, cols = frame[0].length;
-    if (this.dreamOff.width !== cols || this.dreamOff.height !== rows) {
-      this.dreamOff.width = cols;
-      this.dreamOff.height = rows;
-    }
-    this.dreamCtx.clearRect(0, 0, cols, rows);
-    const palette = PALETTES.normal;
-    for (let r = 0; r < rows; r++) {
-      const row = frame[r];
-      for (let c = 0; c < cols; c++) {
-        const ch = row[c];
-        if (ch === '.') continue;
-        this.dreamCtx.fillStyle = palette[ch] || '#ff00ff';
-        this.dreamCtx.fillRect(c, r, 1, 1);
-      }
-    }
-    const px = Math.max(1, Math.round(this.k)); // device px per half-cell
-    const gx = 114 + step.dx / 4, gy = 76 - rows + gdy;
-    ctx.drawImage(this.dreamOff, 0, 0, cols, rows, u(gx), u(gy), cols * px, rows * px);
+    const d = this.style.anchors.dream;
+    const res = clips.working.res || 1;
+    const gx = d.x + step.dx * d.cell / (this.style.cell / res), gy = d.y - frame.length * d.cell + gdy;
+    this._paintFrame(this.dreamOff, frame, PALETTES[clips.working.palette], gx, gy, d.cell, this.style.snap, null);
   }
 
   // The bubble dissipates cloud-fashion: it splits into a few soft rounded
