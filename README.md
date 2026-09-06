@@ -21,7 +21,12 @@ which Claw'd is, naturally, still working). Claw'd can be big or small: from a
 thumbnail in the corner to a fist-sized crab that is hard to ignore, which is rather
 the point. The name is what it sounds like: Claude, with claws.
 
-![Claw'd napping, dreaming of work](docs/clawdbot-sleeping.gif)
+Two skins, same crab. The original on the left, the `cli` skin (after the Claude Code
+terminal buddy) on the right; pick either from the gear in the popover.
+
+| `app` skin | `cli` skin |
+|:---:|:---:|
+| ![Claw'd napping, dreaming of work](docs/clawdbot-sleeping.gif) | ![The cli skin napping, dreaming of work](docs/clawdbot-sleeping-cli.gif) |
 
 Claw'dbot is an independent hobby project. It is not made, endorsed, or supported by
 Anthropic. The working animation and the optional `cli` skin are recreations of
@@ -111,7 +116,9 @@ a settings file that already has hooks). `node hooks/remove-hooks.js` undoes it.
 Every hook is an HTTP POST with a two second timeout. The pet answers `200 {}` before
 doing any work, so a slow or dead pet can never stall a Claude turn.
 
-![Claw'd working, hopping for input, waving the done flag](docs/clawdbot-demo.gif)
+| `app` skin | `cli` skin |
+|:---:|:---:|
+| ![Claw'd working, hopping for input, waving the done flag](docs/clawdbot-demo.gif) | ![The cli skin working, hopping for input, waving the done flag](docs/clawdbot-demo-cli.gif) |
 
 ## Using it
 
